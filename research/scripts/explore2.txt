@@ -1,0 +1,9 @@
+41 key -5 down
+42 key -5 up
+101 key -5 down
+102 key -5 up
+130 shot e
+170 shot f
+220 shot g
+280 shot h
+340 shot i

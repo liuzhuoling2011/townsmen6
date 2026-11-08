@@ -1,0 +1,15 @@
+41 key -5 down
+42 key -5 up
+106 key -2 down
+107 key -2 up
+111 key -5 down
+112 key -5 up
+356 key -5 down
+357 key -5 up
+391 key -5 down
+392 key -5 up
+426 key -5 down
+427 key -5 up
+461 key -5 down
+462 key -5 up
+666 shot end

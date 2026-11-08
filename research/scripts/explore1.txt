@@ -1,0 +1,6 @@
+40 shot a_lang
+41 key -5 down
+42 key -5 up
+70 shot b_after_lang
+100 shot c
+130 shot d

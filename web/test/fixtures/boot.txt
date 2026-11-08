@@ -1,0 +1,17 @@
+0 shot f0000
+25 shot f0025
+50 shot f0050
+75 shot f0075
+100 shot f0100
+125 shot f0125
+150 shot f0150
+175 shot f0175
+200 shot f0200
+225 shot f0225
+250 shot f0250
+275 shot f0275
+300 shot f0300
+325 shot f0325
+350 shot f0350
+375 shot f0375
+400 shot f0400

@@ -1,0 +1,18 @@
+41 key -5 down
+42 key -5 up
+106 key -5 down
+107 key -5 up
+351 shot Title
+351 key -5 down
+352 key -5 up
+386 shot 1
+386 key -5 down
+387 key -5 up
+421 shot 2
+421 key -5 down
+422 key -5 up
+456 shot 3
+456 key -5 down
+457 key -5 up
+491 shot 4
+491 shot end

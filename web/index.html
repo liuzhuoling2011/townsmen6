@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#1b130c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon-192.png" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
+    <title>Townsmen 6</title>
+  </head>
+  <body>
+    <main id="app">
+      <section id="stage">
+        <canvas id="screen" aria-label="Townsmen 6"></canvas>
+        <div id="status"></div>
+      </section>
+      <section id="pad" aria-label="触屏按键">
+        <button class="soft left" data-key="-6" aria-label="左功能键">✓</button>
+        <div class="dpad" aria-label="方向键">
+          <span class="arrow up"></span><span class="arrow down"></span>
+          <span class="arrow left"></span><span class="arrow right"></span>
+        </div>
+        <button class="fire" data-key="-5" aria-label="确定">OK</button>
+        <button class="soft right" data-key="-7" aria-label="右功能键">↩</button>
+      </section>
+      <nav id="tools">
+        <button id="help" title="按键说明">?</button>
+        <button id="toggle-pad" title="显示/隐藏触屏按键">⌨</button>
+        <button id="fullscreen" title="全屏">⛶</button>
+      </nav>
+      <aside id="help-panel">
+        <h2>按键</h2>
+        <dl>
+          <dt>方向键 / WASD</dt><dd>移动光标</dd>
+          <dt>回车 / 空格</dt><dd>确定（中间键）</dd>
+          <dt>Q / Tab</dt><dd>左功能键（✓ 菜单）</dd>
+          <dt>E / Esc / 退格</dt><dd>右功能键（返回）</dd>
+          <dt>0–9、* #</dt><dd>数字键</dd>
+        </dl>
+        <p>进度自动保存在本浏览器中。</p>
+      </aside>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
