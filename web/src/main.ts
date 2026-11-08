@@ -1,5 +1,6 @@
 import "./style.css";
 import { MainMidlet, classes } from "./game/index";
+import { installChinese } from "./i18n/chinese";
 import { loadJar } from "./runtime/assets";
 import { RealClock, Sys } from "./runtime/io";
 import { setClassRegistry } from "./runtime/java";
@@ -54,6 +55,7 @@ async function boot(): Promise<void> {
   const res = await fetch(`${import.meta.env.BASE_URL}game.jar`);
   if (!res.ok) throw new Error(`game.jar: ${res.status}`);
   loadJar(new Uint8Array(await res.arrayBuffer()));
+  installChinese();
 
   Sys.clock = new RealClock();
   Device.font = new CanvasFontEngine();

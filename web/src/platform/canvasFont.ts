@@ -4,7 +4,8 @@
 
 import { Font, type FontEngine, type Graphics } from "../runtime/midp";
 
-export const FONT_FAMILY = 'Verdana, "DejaVu Sans", "Segoe UI", sans-serif';
+export const FONT_FAMILY =
+  'Verdana, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif';
 
 export function fontPx(f: Font): number {
   return f.size === Font.SIZE_SMALL ? 10 : f.size === Font.SIZE_LARGE ? 13 : 11;

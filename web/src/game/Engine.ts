@@ -1714,6 +1714,9 @@ export class Engine {
             break;
           }
         }
+        if (var14[var3] >= 11904 && var14[var3] <= 40959 || var14[var3] >= 12288 && var14[var3] <= 12351 || var14[var3] >= 65281 && var14[var3] <= 65376 || var14[var3] === 8230) {
+          var8 = true;
+        }
       }
       let var19: number = var1.charWidth(var14[var3]);
       if (var5 + var4 + var19 > var2) {

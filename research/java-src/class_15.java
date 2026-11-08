@@ -2672,6 +2672,14 @@ public final class class_15 {
                   break;
                }
             }
+
+            // CJK and fullwidth punctuation break after the character, so Chinese wraps without spaces.
+            if (var14[var3] >= 0x2E80 && var14[var3] <= 0x9FFF
+               || var14[var3] >= 0x3000 && var14[var3] <= 0x303F
+               || var14[var3] >= 0xFF01 && var14[var3] <= 0xFF60
+               || var14[var3] == 0x2026) {
+               var8 = true;
+            }
          }
 
          int var19 = var1.charWidth(var14[var3]);
