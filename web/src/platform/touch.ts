@@ -5,8 +5,10 @@
 
 import { App } from "../game/App";
 import { Engine } from "../game/Engine";
+import { Game } from "../game/Game";
 import { GameData } from "../game/GameData";
 import { GameUi } from "../game/GameUi";
+import type { MapEntity } from "../game/MapEntity";
 import { Device } from "../runtime/midp";
 import { KEY, buzz, capture, press, release, tapKey } from "./input";
 import { buttonFocusRect, carouselZone, cornerKey, confirmAgrees, rowFocusRect, softZoneGame, type Rect } from "./zones";
@@ -93,10 +95,12 @@ const CAMPAIGN_ACTION_MENU = 35;
 const CAMPAIGN_MESSAGE = 36;
 
 const TRADE_ROW_HEIGHT = 18;
-/** CSS px a finger may wander before a press counts as a drag. */
-const DRAG_SLOP = 12;
-/** CSS px around the cursor that count as tapping the cursor again. */
-const NEAR_CURSOR = 30;
+/** CSS px a finger may wander before a map press counts as a drag. */
+const DRAG_SLOP = 8;
+/** Placing a building tolerates a shakier finger so the tap still lands. */
+const PLACE_SLOP = 18;
+/** CSS px around the last tap that count as tapping that same spot again. */
+const NEAR_TAP = 44;
 
 /** Building panels; GameUi.keyPressed treats states 11-20 like the plain map. */
 function isPanel(state: number): boolean {
@@ -190,12 +194,12 @@ function finger(minGame: number, css: number): number {
 
 function hitButton(p: PanelLayout, x: number, y: number): number {
   if (p.buttonsY < 0 || p.buttonCount === 0) return -1;
-  const slop = finger(8, 18);
+  const slop = finger(10, 24);
   const top = p.buttonsY - slop;
-  const bottom = p.buttonsY + Math.max(22, cell(161, false)) + slop;
+  const bottom = p.buttonsY + Math.max(24, cell(161, false)) + slop;
   if (y < top || y > bottom) return -1;
   const centers = buttonCenters(p);
-  const reach = Math.max(12, (centers.length > 1 ? centers[1] - centers[0] : p.width) / 2);
+  const reach = Math.max(finger(20, 44) / 2, (centers.length > 1 ? centers[1] - centers[0] : p.width) / 2);
   let best = -1;
   let bestDist = Infinity;
   centers.forEach((cx, i) => {
@@ -212,9 +216,13 @@ function hitButton(p: PanelLayout, x: number, y: number): number {
 
 let cssPerPixel = 1;
 
-function nearCursor(x: number, y: number): boolean {
-  const r = NEAR_CURSOR / cssPerPixel;
-  return Math.abs(x - ui.cursorX) <= r && Math.abs(y - ui.cursorY) <= r;
+let lastTapX = Number.NaN;
+let lastTapY = Number.NaN;
+let viewDirty = false;
+
+function nearPoint(x: number, y: number, ox: number, oy: number): boolean {
+  const r = NEAR_TAP / cssPerPixel;
+  return Math.abs(x - ox) <= r && Math.abs(y - oy) <= r;
 }
 
 function cursorIsStill(): boolean {
@@ -229,12 +237,9 @@ function clearHover(): void {
   if (ui.state === 1) ui.setState(0);
 }
 
-/** First tap moves the cursor and lets the game show what is there; tapping it again is OK. */
+/** A light tap inspects that spot, like hovering a mouse. Tapping the same spot again confirms. */
 function cursorTap(x: number, y: number, campaign: boolean): void {
-  if (nearCursor(x, y) && cursorIsStill()) {
-    tapKey(KEY.FIRE);
-    return;
-  }
+  const again = nearPoint(x, y, lastTapX, lastTapY) && cursorIsStill() && ui.hoverInfoValid;
   const w = Engine.screenWidth;
   const h = Engine.screenHeight;
   // The campaign map scrolls whenever the cursor leaves this inner band.
@@ -244,8 +249,16 @@ function cursorTap(x: number, y: number, campaign: boolean): void {
   ui.cursorY = clamp(Math.round(y), my, h - 3 - my);
   ui.cursorVelocityX = ui.cursorVelocityY = 0;
   ui.cursorDirX = ui.cursorDirY = 0;
+  lastTapX = ui.cursorX;
+  lastTapY = ui.cursorY;
+  if (again) {
+    tapKey(KEY.FIRE);
+    return;
+  }
   ui.hoverInfoValid = false;
   if (!campaign && (ui.state === 0 || ui.state === 1)) clearHover();
+  if (!campaign) GameUi.updateHoverInfo();
+  viewDirty = true;
 }
 
 function directionKey(dx: number, dy: number): number {
@@ -289,15 +302,12 @@ function panelTap(x: number, y: number): void {
   if (!p) return;
   const button = hitButton(p, x, y);
   if (button >= 0) {
-    if (ui.panelFocus === 3 && ui.selectedButton === button) {
-      tapKey(KEY.FIRE);
-      return;
-    }
+    // The button under the finger is the one to press. A second tap was too easy to miss.
     ui.panelFocus = 3;
     ui.selectedButton = button;
     if (ui.state === UI_TRADE) ui.selectedRow = -1;
     ui.setHint(ui.getButtonHint());
-    Engine.playSound(30);
+    tapKey(KEY.FIRE);
     return;
   }
   const inside = x >= p.x - 4 && x <= p.x + p.width + 4 && y >= p.top - 4 && y <= p.bottom + 4;
@@ -310,23 +320,19 @@ function panelTap(x: number, y: number): void {
     const listTop = p.dividers[0];
     const last = p.rows[p.rows.length - 1];
     const listBottom = last ? last.y + last.h : p.bottom;
-    const slop = finger(4, 10);
+    const slop = finger(8, 22);
     if (y < listTop - slop || y > listBottom + slop) return;
     const row = Math.floor((y - listTop + ui.panelScrollY) / TRADE_ROW_HEIGHT);
     if (row < 0 || row >= ui.tradeResources.size) return;
-    if (ui.panelFocus !== 3 && ui.selectedRow === row) {
-      tapKey(leftHalf ? KEY.LEFT : KEY.RIGHT);
-    } else {
-      ui.panelFocus = 1;
-      ui.selectedRow = row;
-      ui.setHint(null);
-      Engine.playSound(30);
-    }
+    ui.panelFocus = 1;
+    ui.selectedRow = row;
+    ui.setHint(null);
+    tapKey(leftHalf ? KEY.LEFT : KEY.RIGHT);
     return;
   }
   if (PANELS_WITH_ROWS.has(ui.state)) {
     const rows = p.rows.slice(0, ui.maxRow + 1);
-    const slop = finger(4, 10);
+    const slop = finger(8, 22);
     let row = -1;
     let best = Infinity;
     rows.forEach((r, i) => {
@@ -337,15 +343,83 @@ function panelTap(x: number, y: number): void {
       }
     });
     if (row < 0) return;
-    if (ui.panelFocus === 1 && ui.selectedRow === row) {
-      tapKey(leftHalf ? KEY.LEFT : KEY.RIGHT);
-    } else {
-      ui.panelFocus = 1;
-      ui.selectedRow = row;
-      ui.setHint(ui.getRowHint());
-      Engine.playSound(30);
-    }
+    ui.panelFocus = 1;
+    ui.selectedRow = row;
+    ui.setHint(ui.getRowHint());
+    tapKey(leftHalf ? KEY.LEFT : KEY.RIGHT);
   }
+}
+
+interface UiPrivate {
+  messageQueue?: { isEmpty(): boolean };
+  placementEntity: MapEntity | null;
+  cursorTileX: number;
+  cursorTileY: number;
+  buildMenuTypes: { get(index: number): number };
+  buildMenuIndex: number;
+}
+
+let watchFarm = false;
+let noteTimer = 0;
+
+function note(text: string): void {
+  const el = document.getElementById("status");
+  if (!el || el.classList.contains("action")) return;
+  el.textContent = text;
+  window.clearTimeout(noteTimer);
+  noteTimer = window.setTimeout(() => {
+    if (el.textContent === text) el.textContent = "";
+  }, 4200);
+}
+
+function placingFarm(): boolean {
+  const extra = GameUi as unknown as UiPrivate;
+  if (ui.state === UI_PLACE_ATTACHMENT) return true;
+  if (ui.state !== UI_PLACE) return false;
+  try {
+    return extra.buildMenuTypes.get(extra.buildMenuIndex) === 5;
+  } catch {
+    return false;
+  }
+}
+
+/** Why a ghost will not sit on this tile. Farm plots follow the same ground rules. */
+function whyNot(tx: number, ty: number, farm: boolean): string {
+  const level = Game.level;
+  let reason = "这块地放不下";
+  if (!level || tx < 0 || ty < 0 || tx >= level.width || ty >= level.height) reason = "出了地图边缘";
+  else {
+    const obj = level.objects[tx][ty];
+    const tile = level.tiles[tx][ty];
+    if (obj && !obj.isReplaceable()) reason = "这里已经有树、石头或建筑";
+    else if (tile.isWater() || tile.isCoast()) reason = "水和海岸上不能建";
+    else if (!tile.method_113()) reason = "这块地不平整";
+  }
+  return farm ? `${reason}。农场要空草地，放下后还得圈麦田或猪圈` : reason;
+}
+
+/** One tap moves the ghost onto that tile and builds there when the ground allows it. */
+function placeTap(x: number, y: number): void {
+  const w = Engine.screenWidth;
+  const h = Engine.screenHeight;
+  ui.cursorX = clamp(Math.round(x), 0, w - 2);
+  ui.cursorY = clamp(Math.round(y), 0, h - 3);
+  ui.cursorVelocityX = ui.cursorVelocityY = 0;
+  ui.cursorDirX = ui.cursorDirY = 0;
+  ui.hoverInfoValid = false;
+  GameUi.updateHoverInfo();
+  const extra = GameUi as unknown as UiPrivate;
+  const entity = extra.placementEntity;
+  const tx = extra.cursorTileX;
+  const ty = extra.cursorTileY;
+  const farm = placingFarm();
+  if (entity && entity.setTileAndCheckPlacement(tx, ty)) {
+    if (ui.state === UI_PLACE) watchFarm = true;
+    tapKey(KEY.FIRE);
+  } else {
+    note(whyNot(tx, ty, farm));
+  }
+  viewDirty = true;
 }
 
 function levelTap(x: number, y: number): void {
@@ -367,6 +441,10 @@ function levelTap(x: number, y: number): void {
     case UI_BUILD_MENU:
     case UI_ATTACHMENT_MENU:
       carouselTap(x, y);
+      return;
+    case UI_PLACE:
+    case UI_PLACE_ATTACHMENT:
+      placeTap(x, y);
       return;
   }
   if (isPanel(ui.state)) panelTap(x, y);
@@ -480,6 +558,19 @@ function panContext(): string | null {
 let panRemX = 0;
 let panRemY = 0;
 
+/** Keeps a dragged view inside the map. The campaign map has its own bounds. */
+function settleCamera(): void {
+  if (App.getScreen() === SCREEN_CAMPAIGN) {
+    (GameUi as unknown as { clampCampaignCamera(): void }).clampCampaignCamera();
+    return;
+  }
+  if (App.getScreen() !== SCREEN_LEVEL) return;
+  const extra = GameUi as unknown as UiPrivate;
+  if (ui.state === -2 || ui.state === -1) return;
+  if ((ui.state === 0 || ui.state === 1) && extra.messageQueue && !extra.messageQueue.isEmpty()) return;
+  GameUi.updateCamera();
+}
+
 function panBy(dx: number, dy: number): void {
   panRemX -= dx;
   panRemY -= dy;
@@ -487,9 +578,12 @@ function panBy(dx: number, dy: number): void {
   const iy = Math.trunc(panRemY);
   panRemX -= ix;
   panRemY -= iy;
+  if (!ix && !iy) return;
   ui.cameraX += ix;
   ui.cameraY += iy;
-  if (ix || iy) ui.hoverInfoValid = false;
+  ui.hoverInfoValid = false;
+  settleCamera();
+  viewDirty = true;
 }
 
 function cameraDrag(context: string): Drag {
@@ -601,34 +695,87 @@ function beginDrag(): Drag | null {
   return null;
 }
 
+function flushView(): void {
+  if (watchFarm) {
+    if (ui.state === UI_ATTACHMENT_MENU) {
+      watchFarm = false;
+      note("农场还要在空草地上放麦田或猪圈。右下角返回会拆掉这座农场");
+    } else if (ui.state !== UI_PLACE) {
+      watchFarm = false;
+    }
+  }
+  if (!viewDirty) return;
+  viewDirty = false;
+  try {
+    Device.repaintRequested = true;
+    Device.paintNow();
+  } catch {
+    // The game tick paints on its own if this frame's canvas is not ready.
+  }
+}
+
 /** Called every animation frame; carries a flicked map on until it slows down. */
 export function updateTouch(dtMs: number): void {
-  if (!inertia) return;
-  if (panContext() !== inertia.context) {
-    inertia = null;
-    return;
+  if (inertia) {
+    if (panContext() !== inertia.context) {
+      inertia = null;
+    } else {
+      panBy(inertia.vx * dtMs, inertia.vy * dtMs);
+      const decay = Math.exp(-dtMs / 280);
+      inertia.vx *= decay;
+      inertia.vy *= decay;
+      if (Math.hypot(inertia.vx, inertia.vy) < 0.015) inertia = null;
+    }
   }
-  panBy(inertia.vx * dtMs, inertia.vy * dtMs);
-  const decay = Math.exp(-dtMs / 220);
-  inertia.vx *= decay;
-  inertia.vy *= decay;
-  if (Math.hypot(inertia.vx, inertia.vy) < 0.02) inertia = null;
+  flushView();
+}
+
+/** The pointing-hand cursor. Touch uses the finger, so the sprite only gets in the way. */
+function hideHandCursor(): void {
+  const hand = (image: number, frame: number) =>
+    document.body.classList.contains("touch") &&
+    !document.body.classList.contains("pad") &&
+    ((image === 168 && frame === 16562) || (image === 165 && frame >= 16542 && frame <= 16545));
+  const anchored = Engine.drawSpriteAnchored;
+  Engine.drawSpriteAnchored = (g, x, y, image, frame, anchor) => {
+    if (hand(image, frame)) return;
+    anchored(g, x, y, image, frame, anchor);
+  };
 }
 
 // ---------------------------------------------------------------- pointer plumbing
+
+function hitsPanelControl(x: number, y: number): boolean {
+  if (!isPanel(ui.state)) return false;
+  const p = currentPanel();
+  if (!p) return false;
+  if (hitButton(p, x, y) >= 0) return true;
+  return x >= p.x - 8 && x <= p.x + p.width + 8 && y >= p.top - 8 && y <= p.bottom + finger(10, 24);
+}
+
+/** Soft keys commit on release, and only when the finger is not aiming at a panel control. */
+function cornerTap(x: number, y: number): boolean {
+  if (hitsPanelControl(x, y)) return false;
+  const which = cornerKey(x, y, Engine.screenWidth, Engine.screenHeight, cssPerPixel, cell(151, true), cell(151, false));
+  if (!which) return false;
+  tapKey(which === "left" ? KEY.SOFT_LEFT : KEY.SOFT_RIGHT);
+  return true;
+}
 
 interface Gesture {
   id: number;
   startX: number;
   startY: number;
-  corner: number;
   dragging: boolean;
   drag: Drag | null;
   samples: { t: number; x: number; y: number }[];
+  vx: number;
+  vy: number;
 }
 
 export function installTouchScreen(canvas: HTMLCanvasElement, onAnyInput: () => void): void {
   recordPanelLayout();
+  hideHandCursor();
   let g: Gesture | null = null;
 
   const toGame = (e: PointerEvent) => {
@@ -637,10 +784,8 @@ export function installTouchScreen(canvas: HTMLCanvasElement, onAnyInput: () => 
     return { x: (e.clientX - r.left) / cssPerPixel, y: (e.clientY - r.top) / cssPerPixel };
   };
 
-  const cornerAt = (x: number, y: number) => {
-    const which = cornerKey(x, y, Device.width, Device.height, cssPerPixel, cell(151, true), cell(151, false));
-    return which === "left" ? KEY.SOFT_LEFT : which === "right" ? KEY.SOFT_RIGHT : 0;
-  };
+  const placeSlop = () =>
+    app.state === APP_SCREEN && App.getScreen() === SCREEN_LEVEL && (ui.state === UI_PLACE || ui.state === UI_PLACE_ATTACHMENT);
 
   canvas.addEventListener("pointerdown", (e) => {
     if (g || (e.pointerType === "mouse" && e.button !== 0)) return;
@@ -650,18 +795,34 @@ export function installTouchScreen(canvas: HTMLCanvasElement, onAnyInput: () => 
     buzz();
     inertia = null;
     const p = toGame(e);
-    const corner = cornerAt(p.x, p.y);
-    if (corner) press(corner);
-    g = { id: e.pointerId, startX: e.clientX, startY: e.clientY, corner, dragging: false, drag: null, samples: [{ t: e.timeStamp, ...p }] };
+    g = {
+      id: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      dragging: false,
+      drag: null,
+      samples: [{ t: e.timeStamp, ...p }],
+      vx: 0,
+      vy: 0,
+    };
   });
 
   canvas.addEventListener("pointermove", (e) => {
-    if (!g || e.pointerId !== g.id || g.corner) return;
-    const p = toGame(e);
-    g.samples.push({ t: e.timeStamp, ...p });
-    while (g.samples.length > 2 && e.timeStamp - g.samples[0].t > 80) g.samples.shift();
+    if (!g || e.pointerId !== g.id) return;
+    const coalesced = e.getCoalescedEvents?.() ?? [];
+    const points = (coalesced.length ? coalesced : [e]).map((ev) => ({ t: ev.timeStamp, ...toGame(ev) }));
+    for (const point of points) g.samples.push(point);
+    while (g.samples.length > 2 && e.timeStamp - g.samples[0].t > 100) g.samples.shift();
+    const first = g.samples[0];
+    const last = g.samples[g.samples.length - 1];
+    const dt = last.t - first.t;
+    if (dt >= 16) {
+      g.vx = (last.x - first.x) / dt;
+      g.vy = (last.y - first.y) / dt;
+    }
     if (!g.dragging) {
-      if (Math.hypot(e.clientX - g.startX, e.clientY - g.startY) < DRAG_SLOP) return;
+      const slop = placeSlop() ? PLACE_SLOP : DRAG_SLOP;
+      if (Math.hypot(e.clientX - g.startX, e.clientY - g.startY) < slop) return;
       g.dragging = true;
       g.drag = beginDrag();
     }
@@ -672,25 +833,19 @@ export function installTouchScreen(canvas: HTMLCanvasElement, onAnyInput: () => 
     if (!g || e.pointerId !== g.id) return;
     const gesture = g;
     g = null;
-    if (gesture.corner) {
-      release(gesture.corner);
-      return;
-    }
     // A short slide on a screen that does not scroll is still a tap.
     if (!gesture.dragging || !gesture.drag) {
       const moved = Math.hypot(e.clientX - gesture.startX, e.clientY - gesture.startY);
       if (!cancelled && moved < 48) {
         const p = toGame(e);
-        onTap(p.x, p.y);
+        if (!cornerTap(p.x, p.y)) onTap(p.x, p.y);
       }
       return;
     }
-    const first = gesture.samples[0];
     const last = gesture.samples[gesture.samples.length - 1];
-    const dt = Math.max(1, last.t - first.t);
-    const recent = e.timeStamp - last.t < 60;
-    const vx = recent && !cancelled ? (last.x - first.x) / dt : 0;
-    const vy = recent && !cancelled ? (last.y - first.y) / dt : 0;
+    const recent = !!last && e.timeStamp - last.t < 140;
+    const vx = recent && !cancelled ? gesture.vx : 0;
+    const vy = recent && !cancelled ? gesture.vy : 0;
     gesture.drag?.end(vx, vy, (e.clientX - gesture.startX) / cssPerPixel, (e.clientY - gesture.startY) / cssPerPixel);
   };
   canvas.addEventListener("pointerup", (e) => finish(e, false));

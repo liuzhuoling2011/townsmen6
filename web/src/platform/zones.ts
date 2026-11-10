@@ -1,8 +1,17 @@
 // Hit zones for the touch layer, in game pixels. Kept free of the game runtime so
 // the phone-sized targets can be checked without booting a frame.
 
-/** CSS px of the soft-key corner, a comfortable thumb target. */
-export const SOFT_ZONE_CSS = 64;
+/** CSS px of the soft-key corner. Big enough for a thumb, small enough not to swallow the buttons above it. */
+export const SOFT_ZONE_CSS = 48;
+
+/** Map pixel under a screen point. Matches GameUi.screenToTile. */
+export function screenTile(x: number, y: number, cameraX: number, cameraY: number): { x: number; y: number } {
+  const sx = x + cameraX + 32;
+  const sy = y + cameraY + 16;
+  const a = Math.trunc(sx / 2) - sy;
+  const b = Math.trunc(sx / 2) + sy;
+  return { x: Math.trunc(a / 32), y: Math.trunc(b / 32) };
+}
 
 export type Corner = "left" | "right" | null;
 export type CarouselZone = "fire" | "left" | "right" | "up" | "down";
@@ -17,9 +26,10 @@ export interface Rect {
 /** Game-pixel size of a bottom corner. Never eats more than the side it sits on. */
 export function softZoneGame(width: number, height: number, cssPerPixel: number, spriteW = 0, spriteH = 0): { w: number; h: number } {
   const css = Math.max(cssPerPixel, 0.01);
+  const thumb = SOFT_ZONE_CSS / css;
   return {
-    w: Math.min(width * 0.42, Math.max(spriteW + 4, SOFT_ZONE_CSS / css)),
-    h: Math.min(height * 0.34, Math.max(spriteH + 4, SOFT_ZONE_CSS / css)),
+    w: Math.min(width * 0.28, Math.max(spriteW + 6, thumb)),
+    h: Math.min(height * 0.16, Math.max(spriteH + 6, thumb)),
   };
 }
 
