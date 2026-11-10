@@ -1,9 +1,11 @@
 // Screen Graphics that draws straight onto a Canvas2D at an integer scale:
-// pixel art stays nearest-neighbour while text is rendered with real fonts at
-// device resolution. Game logic never reads screen pixels, so only the look changes.
+// pixel art stays nearest-neighbour (or is swapped for an upscaled art pack) while text
+// is rendered with real fonts at device resolution. Game logic never reads screen
+// pixels, so only the look changes.
 
 import { Device, Graphics, Image } from "../runtime/midp";
 import { cssFont } from "./canvasFont";
+import { hdTexture } from "./hdArt";
 
 type Source = HTMLCanvasElement | OffscreenCanvas;
 
@@ -144,8 +146,19 @@ export class HdGraphics extends Graphics {
     const s = this.scale;
     const ctx = this.ctx;
     const [a, b, c, d, e, f] = transformMatrix(transform, dw, dh);
-    ctx.setTransform(a * s, b * s, c * s, d * s, (x + e) * s, (y + f) * s);
-    ctx.drawImage(sourceOf(img), sx, sy, w, h, 0, 0, w, h);
+    const hd = hdTexture(img);
+    if (hd) {
+      const k = hd.scale;
+      const r = s / k;
+      ctx.setTransform(a * r, b * r, c * r, d * r, (x + e) * s, (y + f) * s);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(hd.source, sx * k, sy * k, w * k, h * k, 0, 0, w * k, h * k);
+      ctx.imageSmoothingEnabled = false;
+    } else {
+      ctx.setTransform(a * s, b * s, c * s, d * s, (x + e) * s, (y + f) * s);
+      ctx.drawImage(sourceOf(img), sx, sy, w, h, 0, 0, w, h);
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 

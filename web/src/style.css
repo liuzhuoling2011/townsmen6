@@ -251,6 +251,18 @@ body.touch #pad {
   cursor: pointer;
 }
 
+#tools #hd {
+  width: auto;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#tools #hd.on {
+  background: var(--gold);
+  color: var(--panel);
+}
+
 #help-panel {
   display: none;
   position: fixed;

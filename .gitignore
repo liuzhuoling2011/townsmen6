@@ -6,6 +6,9 @@ web/dist/
 web/public/game.jar
 web/public/icon-*.png
 
+# `npm run hd` working files (upscaler inputs/outputs, comparisons)
+web/.hd-cache/
+
 # Research intermediates, all reproducible from the JAR
 research/build/
 research/out/

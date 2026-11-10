@@ -6,6 +6,7 @@ import { RealClock, Sys } from "./runtime/io";
 import { setClassRegistry } from "./runtime/java";
 import { Device, type MIDlet } from "./runtime/midp";
 import { CanvasFontEngine } from "./platform/canvasFont";
+import { ORIGINAL_ART, listHdPacks, missingHdKeys, selectHdPack, type HdPack } from "./platform/hdArt";
 import { installHdScreen } from "./platform/hdGraphics";
 import { installKeyboard, installSoftKeyCorners, installTouchPad, releaseAll } from "./platform/input";
 import { MidiAudio, audioStatus, unlockAudio } from "./platform/midiAudio";
@@ -49,6 +50,38 @@ function applyLayout(): void {
   Device.repaintRequested = true;
 }
 
+let toastTimer = 0;
+function toast(text: string): void {
+  if (status.classList.contains("action")) return;
+  status.textContent = text;
+  clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    if (status.textContent === text) status.textContent = "";
+  }, 1500);
+}
+
+const HD_STORAGE = "townsmen6.hd";
+let hdPacks: HdPack[] = [ORIGINAL_ART];
+let hdIndex = 0;
+
+async function applyHdPack(index: number, announce: boolean): Promise<void> {
+  hdIndex = index;
+  const pack = hdPacks[index];
+  const ok = await selectHdPack(pack.id, (f) => {
+    if (hdIndex === index && !status.classList.contains("action")) status.textContent = `加载 ${pack.label}… ${Math.round(f * 100)}%`;
+  });
+  if (hdIndex !== index) return;
+  if (status.textContent?.startsWith("加载 ")) status.textContent = "";
+  document.getElementById("hd")?.classList.toggle("on", ok && pack.id !== "");
+  localStorage.setItem(HD_STORAGE, pack.id);
+  Device.repaintRequested = true;
+  if (announce) toast(ok ? `画质：${pack.label}` : `${pack.label} 未生成，先运行 npm run hd`);
+}
+
+function cycleHdPack(): void {
+  void applyHdPack((hdIndex + 1) % hdPacks.length, true);
+}
+
 async function boot(): Promise<void> {
   if (matchMedia("(pointer: coarse)").matches) document.body.classList.add("touch");
   status.textContent = "加载中…";
@@ -63,12 +96,17 @@ async function boot(): Promise<void> {
   Device.storage = new LocalRecordStorage("townsmen6.rms.v1");
   Device.stores = Device.storage.load();
   setClassRegistry(classes);
+  hdPacks = await listHdPacks();
+  document.getElementById("hd")?.toggleAttribute("hidden", hdPacks.length < 2);
+  const savedHd = new URLSearchParams(location.search).get("hd") ?? localStorage.getItem(HD_STORAGE);
+  const savedIndex = hdPacks.findIndex((p) => p.id === savedHd);
+  await applyHdPack(savedIndex >= 0 ? savedIndex : Math.min(1, hdPacks.length - 1), false);
   applyLayout();
 
   const midlet: MIDlet = new MainMidlet();
   midlet.launch();
   status.textContent = "";
-  if (import.meta.env.DEV) Object.assign(window, { __game: { Device, Sys, midlet, audioStatus } });
+  if (import.meta.env.DEV) Object.assign(window, { __game: { Device, Sys, midlet, audioStatus, missingHdKeys } });
 
   const onInput = () => unlockAudio();
   installKeyboard(onInput);
@@ -106,6 +144,10 @@ async function boot(): Promise<void> {
 document.getElementById("fullscreen")?.addEventListener("click", () => {
   if (document.fullscreenElement) void document.exitFullscreen();
   else void document.documentElement.requestFullscreen?.();
+});
+document.getElementById("hd")?.addEventListener("click", cycleHdPack);
+window.addEventListener("keydown", (e) => {
+  if (e.code === "KeyH" && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) cycleHdPack();
 });
 document.getElementById("help")?.addEventListener("click", () => document.body.classList.toggle("show-help"));
 document.getElementById("toggle-pad")?.addEventListener("click", () => {

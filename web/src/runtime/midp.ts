@@ -176,6 +176,8 @@ export class Image {
   readonly id: number;
   /** Bumped on every mutation so renderers can cache uploads. */
   version = 0;
+  /** CRC32 of the PNG bytes a decoded image came from; renderers use it to find replacement art. */
+  key: string | null = null;
 
   constructor(
     readonly width: number,
@@ -216,7 +218,9 @@ export class Image {
     } catch (e) {
       throw new JavaException(`IllegalArgumentException: ${(e as Error).message}`);
     }
-    return new Image(decoded.width, decoded.height, false, false, decoded.argb);
+    const img = new Image(decoded.width, decoded.height, false, false, decoded.argb);
+    img.key = crc32(bytes).toString(16).padStart(8, "0");
+    return img;
   }
 
   getGraphics(): Graphics {
