@@ -15,8 +15,33 @@ function fromBase64(s: string): Int8Array {
   return out;
 }
 
+const EXPORT_FORMAT = "townsmen6-save";
+
 export class LocalRecordStorage implements RecordStorage {
   constructor(private readonly key: string) {}
+
+  /** The raw saves as a portable JSON document, or null if nothing has been saved yet. */
+  exportJson(): string | null {
+    const raw = localStorage.getItem(this.key);
+    if (!raw) return null;
+    return JSON.stringify({ format: EXPORT_FORMAT, version: 1, stores: JSON.parse(raw) });
+  }
+
+  /** Replaces all saves with an exported document; throws if the file is not one. */
+  importJson(text: string): void {
+    const doc = JSON.parse(text) as { format?: string; stores?: unknown };
+    const stores = doc.stores;
+    const valid =
+      doc.format === EXPORT_FORMAT &&
+      typeof stores === "object" &&
+      stores !== null &&
+      Object.values(stores).every((records) => Array.isArray(records) && records.every((r) => r === null || typeof r === "string"));
+    if (!valid) throw new Error("不是镇民 6 的存档文件");
+    for (const records of Object.values(stores as Record<string, (string | null)[]>)) {
+      for (const r of records) if (r !== null) fromBase64(r);
+    }
+    localStorage.setItem(this.key, JSON.stringify(stores));
+  }
 
   load(): Map<string, (Int8Array | null)[]> {
     const map = new Map<string, (Int8Array | null)[]>();

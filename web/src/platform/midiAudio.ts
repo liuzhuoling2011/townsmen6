@@ -241,7 +241,22 @@ const songs = new WeakMap<Int8Array, Song>();
 
 export function unlockAudio(): void {
   if (!synth) synth = new Synth();
-  if (synth.ctx.state === "suspended") void synth.ctx.resume();
+  // iOS reports "interrupted" after calls, Siri or backgrounding, and only resumes from a gesture.
+  if (synth.ctx.state !== "running" && synth.ctx.state !== "closed") void synth.ctx.resume();
+}
+
+type AudioSessionType = "auto" | "ambient" | "playback";
+
+/** Safari 16.4+: "playback" keeps sound on when the ring/silent switch is set to silent. */
+export function setIgnoreSilentSwitch(on: boolean): boolean {
+  const session = (navigator as Navigator & { audioSession?: { type: AudioSessionType } }).audioSession;
+  if (!session) return false;
+  session.type = on ? "playback" : "auto";
+  return true;
+}
+
+export function hasAudioSession(): boolean {
+  return "audioSession" in navigator;
 }
 
 export function audioStatus(): { state: string; voices: number } {

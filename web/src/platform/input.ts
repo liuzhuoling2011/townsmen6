@@ -44,7 +44,7 @@ for (let d = 0; d <= 9; d++) {
 
 const held = new Set<number>();
 
-function capture(el: HTMLElement, pointerId: number): void {
+export function capture(el: Element, pointerId: number): void {
   try {
     el.setPointerCapture(pointerId);
   } catch {
@@ -65,6 +65,21 @@ export function release(code: number): void {
 
 export function releaseAll(): void {
   for (const code of [...held]) release(code);
+}
+
+/** A press and release in one go; the game still sees the key held for one tick. */
+export function tapKey(code: number): void {
+  press(code);
+  release(code);
+}
+
+/** Short tick. iOS Safari has no vibration API and ignores this. */
+export function buzz(ms = 8): void {
+  try {
+    navigator.vibrate?.(ms);
+  } catch {
+    // The call is unsupported or was blocked.
+  }
 }
 
 export function installKeyboard(onAnyInput: () => void): void {
@@ -97,7 +112,7 @@ export function installTouchPad(root: HTMLElement, onAnyInput: () => void): void
       capture(el, e.pointerId);
       el.classList.add("down");
       onAnyInput();
-      navigator.vibrate?.(8);
+      buzz();
       press(code);
     });
     const up = () => {
@@ -118,7 +133,7 @@ export function installTouchPad(root: HTMLElement, onAnyInput: () => void): void
     current = code;
     dpad.dataset.dir = String(code);
     if (code) {
-      navigator.vibrate?.(6);
+      buzz(6);
       press(code);
     }
   };
@@ -145,28 +160,4 @@ export function installTouchPad(root: HTMLElement, onAnyInput: () => void): void
   dpad.addEventListener("pointerup", end);
   dpad.addEventListener("pointercancel", end);
   dpad.addEventListener("lostpointercapture", end);
-}
-
-/** Taps on the bottom corners of the screen act as the soft keys shown there. */
-export function installSoftKeyCorners(canvas: HTMLCanvasElement, onAnyInput: () => void): void {
-  let active = 0;
-  canvas.addEventListener("pointerdown", (e) => {
-    const r = canvas.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    const y = (e.clientY - r.top) / r.height;
-    const corner = Math.min(0.22, 48 / r.width);
-    if (y < 1 - Math.min(0.2, 48 / r.height)) return;
-    active = x < corner ? KEY.SOFT_LEFT : x > 1 - corner ? KEY.SOFT_RIGHT : 0;
-    if (!active) return;
-    e.preventDefault();
-    capture(canvas, e.pointerId);
-    onAnyInput();
-    press(active);
-  });
-  const up = () => {
-    if (active) release(active);
-    active = 0;
-  };
-  canvas.addEventListener("pointerup", up);
-  canvas.addEventListener("pointercancel", up);
 }

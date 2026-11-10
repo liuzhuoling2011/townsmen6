@@ -5,7 +5,12 @@
   --wood: #6b4a24;
   --wood-light: #9a6d36;
   --gold: #f2c14e;
-  --pad-h: min(42vh, 240px);
+  --pad-h: min(30vh, 210px);
+  --pad-w: min(24vw, 200px);
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
 }
 
 * {
@@ -23,31 +28,44 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
+  -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 #app {
   position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 100%;
+  height: 100dvh;
+  display: grid;
+  grid-template: "stage" minmax(0, 1fr) / minmax(0, 1fr);
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 
 #stage {
+  grid-area: stage;
   position: relative;
-  flex: 1;
+  min-width: 0;
   min-height: 0;
-  display: grid;
-  place-items: center;
+  overflow: hidden;
   background: #000;
 }
 
 #screen {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
   display: block;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #000;
+  touch-action: none;
 }
 
 #status {
@@ -56,6 +74,7 @@ body {
   text-align: center;
   font-size: 14px;
   color: var(--gold);
+  text-shadow: 0 1px 2px #000;
   pointer-events: none;
 }
 
@@ -67,31 +86,81 @@ body {
   text-decoration: underline;
 }
 
-/* ---------------------------------------------------------------- touch pad */
-
-#pad {
-  display: none;
-  height: var(--pad-h);
-  padding: 12px 16px 16px;
-  background: linear-gradient(#3a2814, #20160c);
-  border-top: 3px solid var(--wood);
-  grid-template-columns: 1fr auto 1fr;
-  grid-template-rows: auto 1fr;
-  align-items: center;
-  justify-items: center;
-  gap: 8px;
+/* Soft-key hints and the panel selection ring. Touches pass through to the canvas. */
+#soft-zones,
+#touch-focus {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
 }
 
-body.touch #pad {
+#soft-zones[hidden],
+#touch-focus[hidden] {
+  display: none;
+}
+
+.soft-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: rgba(27, 19, 12, 0.42);
+  color: var(--gold);
+  font: 700 22px/1 system-ui, sans-serif;
+  box-shadow: inset 0 0 0 1.5px rgba(242, 193, 78, 0.7);
+}
+
+#touch-focus {
+  border: 2px solid var(--gold);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65), 0 0 10px rgba(242, 193, 78, 0.45);
+}
+
+/* ---------------------------------------------------------------- virtual pad */
+
+section.pad {
+  display: none;
+  background: linear-gradient(#3a2814, #20160c);
+}
+
+body.pad #app {
+  grid-template:
+    "stage stage" minmax(0, 1fr)
+    "left right" var(--pad-h)
+    / 1fr 1fr;
+}
+
+body.pad section.pad {
   display: grid;
 }
 
-#pad button,
+#pad-left {
+  grid-area: left;
+  place-items: center start;
+  padding: 10px 0 10px 18px;
+  border-top: 3px solid var(--wood);
+}
+
+#pad-right {
+  grid-area: right;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  place-items: center;
+  gap: 6px;
+  padding: 10px 18px 10px 0;
+  border-top: 3px solid var(--wood);
+}
+
+section.pad button,
 .dpad {
   touch-action: none;
 }
 
-#pad button {
+section.pad button {
   border: 2px solid var(--wood-light);
   background: radial-gradient(circle at 35% 30%, #a77a3e, #5c3d1b);
   color: #fff5d6;
@@ -99,7 +168,7 @@ body.touch #pad {
   box-shadow: 0 3px 0 #2b1b0b;
 }
 
-#pad button.down {
+section.pad button.down {
   transform: translateY(2px);
   box-shadow: 0 1px 0 #2b1b0b;
   filter: brightness(1.2);
@@ -108,25 +177,30 @@ body.touch #pad {
 .soft {
   grid-row: 1;
   width: 64px;
-  height: 40px;
-  border-radius: 20px;
+  height: 46px;
+  border-radius: 23px;
 }
 
 .soft.left {
   grid-column: 1;
-  justify-self: start;
 }
 
 .soft.right {
-  grid-column: 3;
+  grid-column: 2;
+}
+
+.fire {
+  grid-row: 2;
+  grid-column: 1 / span 2;
   justify-self: end;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
 }
 
 .dpad {
-  grid-row: 1 / span 2;
-  grid-column: 2;
   position: relative;
-  width: min(44vw, calc(var(--pad-h) - 28px), 190px);
+  width: min(42vw, calc(var(--pad-h) - 24px), 180px);
   aspect-ratio: 1;
   border-radius: 50%;
   background: radial-gradient(circle, #4d3519 0 30%, #3b2812 31% 100%);
@@ -178,131 +252,228 @@ body.touch #pad {
   filter: drop-shadow(0 0 6px #ffe08a);
 }
 
-.fire {
-  grid-row: 2;
-  grid-column: 3;
-  width: 76px;
-  height: 76px;
-  border-radius: 50%;
-}
-
+/* Landscape holds like a game pad: d-pad under the left thumb, buttons under the right. */
 @media (orientation: landscape) {
-  body.touch #app {
-    flex-direction: row;
+  body.pad #app {
+    grid-template: "left stage right" minmax(0, 1fr) / var(--pad-w) minmax(0, 1fr) var(--pad-w);
   }
 
-  body.touch #pad {
-    height: auto;
-    width: min(34vw, 300px);
-    order: 2;
+  #pad-left {
+    place-items: center;
+    padding: 10px;
+    border-top: 0;
+    border-right: 3px solid var(--wood);
+  }
+
+  #pad-right {
+    grid-template-rows: auto 1fr;
+    padding: 14px 10px;
     border-top: 0;
     border-left: 3px solid var(--wood);
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto 1fr auto;
   }
 
-  body.touch .soft.left {
-    grid-row: 1;
-    grid-column: 1;
+  .fire {
+    justify-self: center;
   }
 
-  body.touch .soft.right {
-    grid-row: 1;
-    grid-column: 2;
-  }
-
-  body.touch .dpad {
-    grid-row: 2;
-    grid-column: 1 / span 2;
-    width: min(28vw, 60vh, 200px);
-  }
-
-  body.touch .fire {
-    grid-row: 3;
-    grid-column: 1 / span 2;
+  .dpad {
+    width: min(calc(var(--pad-w) - 24px), 62vh, 180px);
   }
 }
 
-/* ---------------------------------------------------------------- tools and help */
+/* ---------------------------------------------------------------- settings sheet */
 
-#tools {
+#menu-button {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 6px);
-  right: calc(env(safe-area-inset-right) + 6px);
-  display: flex;
-  gap: 6px;
-  opacity: 0.35;
-  transition: opacity 0.2s;
+  top: calc(var(--safe-top) + 2px);
+  left: 50%;
+  translate: -50% 0;
+  width: 56px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--wood-light);
+  border-radius: 15px;
+  background: rgba(42, 30, 18, 0.72);
+  color: var(--gold);
+  font: 700 18px/1 system-ui, sans-serif;
+  opacity: 0.6;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
-#tools:hover,
-#tools:focus-within {
+/* A larger invisible hit area than the visible pill. */
+#menu-button::after {
+  content: "";
+  position: absolute;
+  inset: -8px -6px;
+}
+
+#menu-button[aria-expanded="true"],
+#menu-button:hover {
   opacity: 1;
 }
 
-#tools button {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+#sheet {
+  position: fixed;
+  top: calc(var(--safe-top) + 40px);
+  left: 50%;
+  translate: -50% 0;
+  width: min(360px, calc(100vw - 16px - var(--safe-left) - var(--safe-right)));
+  max-height: calc(100% - var(--safe-top) - var(--safe-bottom) - 52px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px 14px;
+  background: rgba(42, 30, 18, 0.97);
+  border: 2px solid var(--wood-light);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+#sheet[hidden] {
+  display: none;
+}
+
+.sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sheet-actions button {
+  min-height: 44px;
+  padding: 6px 8px;
   border: 1px solid var(--wood-light);
+  border-radius: 10px;
   background: var(--panel);
-  color: var(--gold);
-  font-size: 15px;
+  color: #f3e6c8;
+  font: 600 14px system-ui, sans-serif;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
-#tools #hd {
-  width: auto;
-  padding: 0 6px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-#tools #hd.on {
+.sheet-actions button.on {
   background: var(--gold);
   color: var(--panel);
 }
 
-#help-panel {
+.sheet-actions button[hidden] {
   display: none;
-  position: fixed;
-  top: 48px;
-  right: 8px;
-  width: min(320px, calc(100vw - 16px));
-  padding: 12px 16px;
-  background: rgba(42, 30, 18, 0.96);
-  border: 2px solid var(--wood-light);
-  border-radius: 10px;
-  font-size: 14px;
-  line-height: 1.5;
 }
 
-body.show-help #help-panel {
-  display: block;
-}
-
-#help-panel h2 {
-  margin: 0 0 6px;
-  font-size: 16px;
+#sheet h2 {
+  margin: 8px 0 4px;
+  font-size: 15px;
   color: var(--gold);
 }
 
-#help-panel dl {
+#sheet dl {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 2px 12px;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 
-#help-panel dt {
+#sheet dt {
   color: var(--gold);
 }
 
-#help-panel dd {
+#sheet dd {
   margin: 0;
 }
 
-#help-panel p {
-  margin: 0;
+#sheet p {
+  margin: 6px 0 0;
   opacity: 0.8;
+}
+
+/* ---------------------------------------------------------------- add to home screen */
+
+#touch-tip {
+  position: fixed;
+  top: calc(var(--safe-top) + 40px);
+  left: calc(var(--safe-left) + 10px);
+  right: calc(var(--safe-right) + 10px);
+  z-index: 4;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  background: rgba(42, 30, 18, 0.97);
+  border: 2px solid var(--gold);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.45;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+#touch-tip[hidden] {
+  display: none;
+}
+
+#touch-tip p {
+  margin: 0;
+  flex: 1;
+}
+
+#touch-tip button {
+  flex: none;
+  min-width: 64px;
+  min-height: 44px;
+  border: 1px solid var(--wood-light);
+  border-radius: 10px;
+  background: var(--gold);
+  color: var(--panel);
+  font: 700 14px system-ui, sans-serif;
+  touch-action: manipulation;
+}
+
+#install-tip {
+  position: fixed;
+  left: calc(var(--safe-left) + 10px);
+  right: calc(var(--safe-right) + 10px);
+  bottom: calc(var(--safe-bottom) + 10px);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  background: rgba(42, 30, 18, 0.97);
+  border: 2px solid var(--gold);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.45;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+#install-tip[hidden] {
+  display: none;
+}
+
+#install-tip p {
+  margin: 0;
+  flex: 1;
+}
+
+#install-tip b {
+  color: var(--gold);
+}
+
+#install-tip button {
+  flex: none;
+  min-width: 64px;
+  min-height: 44px;
+  border: 1px solid var(--wood-light);
+  border-radius: 10px;
+  background: var(--gold);
+  color: var(--panel);
+  font: 700 14px system-ui, sans-serif;
+  touch-action: manipulation;
 }

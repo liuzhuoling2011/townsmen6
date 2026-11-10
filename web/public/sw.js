@@ -1,5 +1,5 @@
 // Offline support: serve from cache first, refresh the cache in the background.
-const CACHE = "townsmen6-v1";
+const CACHE = "townsmen6-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

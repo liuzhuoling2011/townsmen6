@@ -1,7 +1,8 @@
 {
-  "name": "Townsmen 6",
-  "short_name": "Townsmen 6",
-  "description": "Townsmen 6 Revolution, remade for the web",
+  "name": "镇民 6",
+  "short_name": "镇民 6",
+  "lang": "zh-CN",
+  "description": "镇民 6 革命，在手机上全屏游玩的网页版",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
